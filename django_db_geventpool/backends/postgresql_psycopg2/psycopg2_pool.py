@@ -22,12 +22,19 @@ except ImportError as e:
     raise ImproperlyConfigured("Error loading psycopg2 module: %s" % e)
 
 
-class DatabaseConnectionPool(object):
-    def __init__(self, maxsize=100, reuse=100):
+class PostgresConnectionPool(object):
+    def __init__(self, *args, maxsize=100, reuse=100, **kwargs):
         if not isinstance(maxsize, int):
             raise TypeError('Expected integer, got %r' % (maxsize,))
         if not isinstance(reuse, int):
             raise TypeError('Expected integer, got %r' % (reuse,))
+
+        self.connect = kwargs.pop('connect', connect)
+        self.connection = None
+        maxsize = kwargs.pop('MAX_CONNS', 4)
+        reuse = kwargs.pop('REUSE_CONNS', maxsize)
+        self.args = args
+        self.kwargs = kwargs
 
         # Use a WeakSet here so, even if we fail to discard the connection
         # when it is being closed, or it is closed outside of here, the item
@@ -95,17 +102,6 @@ class DatabaseConnectionPool(object):
                 self._conns.discard(conn)
 
         logger.debug("DB connections all closed")
-
-
-class PostgresConnectionPool(DatabaseConnectionPool):
-    def __init__(self, *args, **kwargs):
-        self.connect = kwargs.pop('connect', connect)
-        self.connection = None
-        maxsize = kwargs.pop('MAX_CONNS', 4)
-        reuse = kwargs.pop('REUSE_CONNS', maxsize)
-        self.args = args
-        self.kwargs = kwargs
-        super(PostgresConnectionPool, self).__init__(maxsize, reuse)
 
     def create_connection(self):
         conn = self.connect(*self.args, **self.kwargs)
