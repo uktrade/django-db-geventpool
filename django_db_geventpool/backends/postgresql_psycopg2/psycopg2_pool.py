@@ -7,17 +7,12 @@
 import logging
 import sys
 import weakref
+
+from gevent import queue
+from gevent.lock import RLock
+
 logger = logging.getLogger('django.geventpool')
 
-try:
-    from gevent import queue
-    from gevent.lock import RLock
-except ImportError:
-    from eventlet import queue
-    from ...utils import nullcontext
-
-    def RLock():
-        return nullcontext
 
 try:
     from psycopg2 import connect, DatabaseError
@@ -26,18 +21,12 @@ except ImportError as e:
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured("Error loading psycopg2 module: %s" % e)
 
-if sys.version_info[0] >= 3:
-    integer_types = int,
-else:
-    import __builtin__
-    integer_types = int, __builtin__.long
-
 
 class DatabaseConnectionPool(object):
     def __init__(self, maxsize=100, reuse=100):
-        if not isinstance(maxsize, integer_types):
+        if not isinstance(maxsize, int):
             raise TypeError('Expected integer, got %r' % (maxsize,))
-        if not isinstance(reuse, integer_types):
+        if not isinstance(reuse, int):
             raise TypeError('Expected integer, got %r' % (reuse,))
 
         # Use a WeakSet here so, even if we fail to discard the connection
